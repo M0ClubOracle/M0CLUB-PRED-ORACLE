@@ -1,0 +1,16 @@
+
+[package]
+name = "m0-backtest"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "M0Club backtesting runner"
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+m0-common = { path = "../m0-common" }
+m0-quant = { path = "../m0-quant" }

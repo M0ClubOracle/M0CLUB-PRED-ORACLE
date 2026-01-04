@@ -1,0 +1,17 @@
+
+[package]
+name = "m0-bundle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "M0Club bundle format and hashing"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+uuid.workspace = true
+m0-common = { path = "../m0-common" }
+m0-quant = { path = "../m0-quant" }

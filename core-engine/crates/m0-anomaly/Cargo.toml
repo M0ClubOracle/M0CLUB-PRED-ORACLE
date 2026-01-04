@@ -1,0 +1,15 @@
+
+[package]
+name = "m0-anomaly"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "M0Club anomaly detection and guardrails"
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+m0-common = { path = "../m0-common" }
+tracing.workspace = true
