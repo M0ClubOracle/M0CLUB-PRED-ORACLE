@@ -1,0 +1,378 @@
+name: SDK
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "sdk/**"
+      - "programs/**"
+      - ".github/workflows/sdk.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+  pull_request:
+    branches: ["**"]
+    paths:
+      - "sdk/**"
+      - "programs/**"
+      - ".github/workflows/sdk.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+  workflow_dispatch:
+
+concurrency:
+  group: sdk-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Needed only if you also run release publishing in this workflow
+  # packages: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: "-Dwarnings"
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+  SOLANA_VERSION: "v1.18.26"
+  ANCHOR_VERSION: "0.30.1"
+
+jobs:
+  detect:
+    name: Detect SDK packages
+    runs-on: ubuntu-latest
+    outputs:
+      ts_matrix: ${{ steps.matrices.outputs.ts_matrix }}
+      py_matrix: ${{ steps.matrices.outputs.py_matrix }}
+      rust_matrix: ${{ steps.matrices.outputs.rust_matrix }}
+      any_ts: ${{ steps.matrices.outputs.any_ts }}
+      any_py: ${{ steps.matrices.outputs.any_py }}
+      any_rust: ${{ steps.matrices.outputs.any_rust }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute matrices
+        id: matrices
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # TypeScript SDKs: sdk/**/package.json excluding node_modules
+          mapfile -t ts_dirs < <(find sdk -maxdepth 3 -type f -name "package.json" -print | xargs -r -n1 dirname | sort -u || true)
+
+          # Python SDKs: sdk/**/pyproject.toml or requirements.txt
+          mapfile -t py_dirs < <(
+            { find sdk -maxdepth 4 -type f -name "pyproject.toml" -print;
+              find sdk -maxdepth 4 -type f -name "requirements.txt" -print; } \
+            | xargs -r -n1 dirname | sort -u || true
+          )
+
+          # Rust SDKs: sdk/**/Cargo.toml
+          mapfile -t rust_dirs < <(find sdk -maxdepth 4 -type f -name "Cargo.toml" -print | xargs -r -n1 dirname | sort -u || true)
+
+          mk_json () {
+            local -n arr=$1
+            local json='{"include":['
+            local first=1
+            for d in "${arr[@]}"; do
+              local name
+              name="$(basename "$d")"
+              if [ $first -eq 1 ]; then first=0; else json+=','; fi
+              json+="{\"path\":\"$d\",\"name\":\"$name\"}"
+            done
+            json+=']}'
+            echo "$json"
+          }
+
+          ts_json="$(mk_json ts_dirs)"
+          py_json="$(mk_json py_dirs)"
+          rust_json="$(mk_json rust_dirs)"
+
+          if [ "${#ts_dirs[@]}" -eq 0 ]; then echo "any_ts=false" >> "$GITHUB_OUTPUT"; else echo "any_ts=true" >> "$GITHUB_OUTPUT"; fi
+          if [ "${#py_dirs[@]}" -eq 0 ]; then echo "any_py=false" >> "$GITHUB_OUTPUT"; else echo "any_py=true" >> "$GITHUB_OUTPUT"; fi
+          if [ "${#rust_dirs[@]}" -eq 0 ]; then echo "any_rust=false" >> "$GITHUB_OUTPUT"; else echo "any_rust=true" >> "$GITHUB_OUTPUT"; fi
+
+          echo "ts_matrix=$ts_json" >> "$GITHUB_OUTPUT"
+          echo "py_matrix=$py_json" >> "$GITHUB_OUTPUT"
+          echo "rust_matrix=$rust_json" >> "$GITHUB_OUTPUT"
+
+          echo "Detected TypeScript SDKs:"
+          printf ' - %s\n' "${ts_dirs[@]:-}"
+          echo "Detected Python SDKs:"
+          printf ' - %s\n' "${py_dirs[@]:-}"
+          echo "Detected Rust SDKs:"
+          printf ' - %s\n' "${rust_dirs[@]:-}"
+
+  typescript:
+    name: TypeScript SDK (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    needs: detect
+    if: ${{ needs.detect.outputs.any_ts == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect.outputs.ts_matrix) }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            ${{ matrix.path }}/package-lock.json
+            ${{ matrix.path }}/npm-shrinkwrap.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          npm ci
+
+      - name: Lint (if exists)
+        working-directory: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          if npm run | grep -qE '^  lint'; then
+            npm run lint
+          else
+            echo "No lint script, skipping."
+          fi
+
+      - name: Test (if exists)
+        working-directory: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          if npm run | grep -qE '^  test'; then
+            npm run test
+          else
+            echo "No test script, skipping."
+          fi
+
+      - name: Build (if exists)
+        working-directory: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          if npm run | grep -qE '^  build'; then
+            npm run build
+          else
+            echo "No build script, skipping."
+          fi
+
+      - name: Pack (if exists)
+        working-directory: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          if npm run | grep -qE '^  pack'; then
+            npm run pack
+          else
+            echo "No pack script, skipping."
+          fi
+
+      - name: Upload package tarball (if present)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ts-sdk-${{ matrix.name }}
+          path: |
+            ${{ matrix.path }}/*.tgz
+          if-no-files-found: ignore
+          retention-days: 14
+
+  python:
+    name: Python SDK (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    needs: detect
+    if: ${{ needs.detect.outputs.any_py == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect.outputs.py_matrix) }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            ${{ matrix.path }}/pyproject.toml
+            ${{ matrix.path }}/requirements.txt
+
+      - name: Install dependencies (pyproject)
+        if: ${{ hashFiles(format('{0}/pyproject.toml', matrix.path)) != '' }}
+        working-directory: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          # Try dev extras first, fall back to base install
+          pip install -e ".[dev]" || pip install -e "."
+
+      - name: Install dependencies (requirements.txt)
+        if: ${{ hashFiles(format('{0}/requirements.txt', matrix.path)) != '' }}
+        working-directory: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint (ruff/black/mypy if present)
+        working-directory: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import shutil, subprocess
+          tools = [
+            ("ruff", ["ruff", "check", "."]),
+            ("black", ["black", "--check", "."]),
+            ("mypy", ["mypy", "."]),
+          ]
+          for exe, cmd in tools:
+            if shutil.which(exe):
+              print("Running:", " ".join(cmd))
+              subprocess.check_call(cmd)
+            else:
+              print("Skipping:", exe, "(not installed)")
+          PY
+
+      - name: Tests (pytest if tests exist)
+        working-directory: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          if [ -d "tests" ]; then
+            python -m pytest -q
+          else
+            echo "No tests/ directory found, skipping."
+          fi
+
+      - name: Build wheel/sdist (if pyproject exists)
+        if: ${{ hashFiles(format('{0}/pyproject.toml', matrix.path)) != '' }}
+        working-directory: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          python -m pip install build
+          python -m build
+
+      - name: Upload Python dist (if present)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: py-sdk-${{ matrix.name }}
+          path: |
+            ${{ matrix.path }}/dist/*
+          if-no-files-found: ignore
+          retention-days: 14
+
+  rust:
+    name: Rust SDK (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    needs: detect
+    if: ${{ needs.detect.outputs.any_rust == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect.outputs.rust_matrix) }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install OS deps
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev libudev-dev \
+            curl ca-certificates git
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+
+      - name: Fmt (workspace)
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check
+
+      - name: Clippy (workspace)
+        run: |
+          set -euo pipefail
+          cargo clippy --workspace --all-targets --all-features
+
+      - name: Build SDK crate
+        working-directory: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          cargo build --all-features
+
+      - name: Test SDK crate
+        working-directory: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          cargo test --all-features
+
+      - name: Doc (no deps)
+        working-directory: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          cargo doc --no-deps
+
+  idl-sync:
+    name: Sync IDL to TS SDK (optional)
+    runs-on: ubuntu-latest
+    needs: [detect]
+    if: ${{ needs.detect.outputs.any_ts == 'true' && hashFiles('programs/**/target/idl/*.json') != '' }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Explain
+        run: |
+          echo "This job is a placeholder for syncing Anchor IDLs into sdk/ts."
+          echo "In CI, IDLs are typically produced by the Programs workflow and published as artifacts."
+          echo "If you want automatic sync, wire artifact download + copy into sdk/ts/src/programs/idl."
+
+  security:
+    name: Security scan (OSV)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: OSV-Scanner
+        uses: google/osv-scanner-action@v1.7.3
+        with:
+          scan-args: |-
+            --recursive
+            --skip-git
+            .
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: osv-results.sarif
+          category: osv
