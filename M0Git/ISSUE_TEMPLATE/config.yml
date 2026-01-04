@@ -1,18 +1,26 @@
 blank_issues_enabled: false
 
 contact_links:
+  - name: Official website
+    url: https://m0club.com/
+    about: Project overview, docs, and official resources.
+
+  - name: Official X (Twitter)
+    url: https://x.com/M0Clubonx
+    about: Announcements, updates, and ecosystem links.
+
   - name: Security vulnerability report
     url: https://github.com/<OWNER>/<REPO>/security/policy
     about: Report security vulnerabilities privately. Do not open public issues for security reports.
-
-  - name: Documentation
-    url: https://github.com/<OWNER>/<REPO>/wiki
-    about: Read setup, architecture, and operational guides.
 
   - name: Questions / Discussions
     url: https://github.com/<OWNER>/<REPO>/discussions
     about: Ask questions and discuss ideas with the community.
 
-  - name: Support
+  - name: Support (Q&A)
     url: https://github.com/<OWNER>/<REPO>/discussions/categories/q-a
     about: Get help with setup, integrations, and troubleshooting.
+
+  - name: Documentation
+    url: https://github.com/<OWNER>/<REPO>/wiki
+    about: Setup, architecture, and operational guides.
