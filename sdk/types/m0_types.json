@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "M0Club Types",
+  "type": "object",
+  "properties": {
+    "MarketId": {
+      "type": "string",
+      "pattern": "^[A-Z0-9_\\-\\.]{3,64}$"
+    },
+    "Domain": {
+      "type": "string",
+      "enum": [
+        "politics",
+        "sports",
+        "macro",
+        "crypto",
+        "markets",
+        "unknown"
+      ]
+    },
+    "EpochId": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "TimestampMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ConfidenceInterval": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "OutcomeProb": {
+      "type": "object",
+      "properties": {
+        "p": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "ci": {
+          "$ref": "#/properties/ConfidenceInterval"
+        }
+      },
+      "required": [
+        "p",
+        "ci"
+      ],
+      "additionalProperties": false
+    },
+    "PredictionPayload": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/properties/OutcomeProb"
+      }
+    },
+    "Prediction": {
+      "type": "object",
+      "properties": {
+        "market_id": {
+          "$ref": "#/properties/MarketId"
+        },
+        "epoch_id": {
+          "$ref": "#/properties/EpochId"
+        },
+        "outcomes": {
+          "$ref": "#/properties/PredictionPayload"
+        }
+      },
+      "required": [
+        "market_id",
+        "epoch_id",
+        "outcomes"
+      ],
+      "additionalProperties": false
+    },
+    "Market": {
+      "type": "object",
+      "properties": {
+        "market_id": {
+          "$ref": "#/properties/MarketId"
+        },
+        "domain": {
+          "$ref": "#/properties/Domain"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "market_id",
+        "domain",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "Epoch": {
+      "type": "object",
+      "properties": {
+        "epoch_id": {
+          "$ref": "#/properties/EpochId"
+        },
+        "market_id": {
+          "$ref": "#/properties/MarketId"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "epoch_id",
+        "market_id",
+        "state"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}
