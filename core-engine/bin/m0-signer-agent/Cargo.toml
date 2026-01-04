@@ -1,0 +1,18 @@
+
+[package]
+name = "m0-signer-agent"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+m0-common = { path = "../../crates/m0-common" }
+m0-signer = { path = "../../crates/m0-signer" }
