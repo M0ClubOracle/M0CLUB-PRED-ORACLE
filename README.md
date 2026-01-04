@@ -19,9 +19,9 @@
 
 ## Token + Trading Links
 
-- **Token CA (Solana):** `TBA`
-- **Pump.fun Link:** `TBA`
-- **DEXScreener Link:** `TBA`
+- **Token CA (Solana):** `95embi6CRLg6brbVVErwfb54wjuqA3iHGLckH9Ktpump`
+- **Pump.fun Link:** `https://pump.fun/coin/95embi6CRLg6brbVVErwfb54wjuqA3iHGLckH9Ktpump`
+- **DEXScreener Link:** `https://dexscreener.com/solana/95embi6CRLg6brbVVErwfb54wjuqA3iHGLckH9Ktpump`
 
 ---
 
