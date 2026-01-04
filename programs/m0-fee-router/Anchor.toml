@@ -1,0 +1,23 @@
+
+[features]
+seeds = true
+skip-lint = false
+
+[programs.localnet]
+m0_fee_router = "M0FeeRou7er11111111111111111111111111111"
+
+[programs.devnet]
+m0_fee_router = "M0FeeRou7er11111111111111111111111111111"
+
+[programs.mainnet]
+m0_fee_router = "M0FeeRou7er11111111111111111111111111111"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "pnpm -C tests test"
