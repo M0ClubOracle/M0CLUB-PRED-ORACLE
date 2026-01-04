@@ -1,0 +1,16 @@
+
+[package]
+name = "m0-normalizer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "M0Club normalization rules and schemas"
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+m0-common = { path = "../m0-common" }
+m0-ingestor = { path = "../m0-ingestor" }
+tracing.workspace = true

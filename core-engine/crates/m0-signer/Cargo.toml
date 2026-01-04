@@ -1,0 +1,20 @@
+
+[package]
+name = "m0-signer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "M0Club signer agent (commit/reveal, replay protection, tx submit)"
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+m0-common = { path = "../m0-common" }
+m0-bundle = { path = "../m0-bundle" }
+rand.workspace = true

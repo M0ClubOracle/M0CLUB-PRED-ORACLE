@@ -1,0 +1,9 @@
+
+syntax = "proto3";
+package m0.feature;
+
+message FeatureRow {
+  string market_id = 1;
+  uint64 ts_ms = 2;
+  bytes features_json = 3;
+}
