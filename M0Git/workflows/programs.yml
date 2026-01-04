@@ -1,0 +1,279 @@
+name: Programs
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "programs/**"
+      - "sdk/**"
+      - ".github/workflows/programs.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "Anchor.toml"
+  pull_request:
+    branches: ["**"]
+    paths:
+      - "programs/**"
+      - "sdk/**"
+      - ".github/workflows/programs.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "Anchor.toml"
+  workflow_dispatch:
+
+concurrency:
+  group: programs-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+  SOLANA_VERSION: "v1.18.26"
+  # Pin Anchor for reproducible builds. Update intentionally.
+  ANCHOR_VERSION: "0.30.1"
+  # Helpful knobs
+  SOLANA_URL: "http://127.0.0.1:8899"
+  ANCHOR_PROVIDER_URL: "http://127.0.0.1:8899"
+
+jobs:
+  detect:
+    name: Detect programs
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      any: ${{ steps.set-matrix.outputs.any }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build program matrix
+        id: set-matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Discover Anchor programs by locating Anchor.toml files in programs/*
+          # This supports: programs/<name>/Anchor.toml
+          mapfile -t found < <(find programs -maxdepth 2 -type f -name "Anchor.toml" -print | sort || true)
+
+          if [ "${#found[@]}" -eq 0 ]; then
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+            echo "No Anchor.toml found under programs/. Nothing to do."
+            exit 0
+          fi
+
+          # Build JSON matrix: [{"path":"programs/x","name":"x"}, ...]
+          json='{"include":['
+          first=1
+          for f in "${found[@]}"; do
+            dir="$(dirname "$f")"
+            name="$(basename "$dir")"
+            if [ $first -eq 1 ]; then
+              first=0
+            else
+              json+=","
+            fi
+            json+="{\"path\":\"$dir\",\"name\":\"$name\"}"
+          done
+          json+="]}"
+
+          echo "any=true" >> "$GITHUB_OUTPUT"
+          echo "matrix=$json" >> "$GITHUB_OUTPUT"
+
+          echo "Detected programs:"
+          printf ' - %s\n' "${found[@]}"
+
+  build-test:
+    name: Build & test (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    needs: detect
+    if: ${{ needs.detect.outputs.any == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect.outputs.matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install OS deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev libudev-dev \
+            curl ca-certificates git jq unzip
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install Solana CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Installing Solana $SOLANA_VERSION"
+          sh -c "$(curl -sSfL https://release.solana.com/${SOLANA_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          solana --version
+
+      - name: Configure Solana URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          solana config set --url "$SOLANA_URL"
+          solana config get
+
+      - name: Install Anchor (pinned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Install from crates.io for pinned version reproducibility
+          cargo install --locked anchor-cli --version "$ANCHOR_VERSION" || true
+          anchor --version
+
+      - name: Prepare wallet
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.config/solana"
+          solana-keygen new --no-bip39-passphrase -o "$HOME/.config/solana/id.json" --force
+          echo "ANCHOR_WALLET=$HOME/.config/solana/id.json" >> "$GITHUB_ENV"
+          echo "ANCHOR_PROVIDER_URL=$SOLANA_URL" >> "$GITHUB_ENV"
+          echo "SOLANA_URL=$SOLANA_URL" >> "$GITHUB_ENV"
+          solana address
+
+      - name: Start local validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          solana-test-validator --reset --quiet --limit-ledger-size &
+          echo $! > /tmp/validator.pid
+
+          # Wait until RPC responds
+          for i in $(seq 1 60); do
+            if solana cluster-version >/dev/null 2>&1; then
+              echo "Validator is up"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Airdrop
+        shell: bash
+        run: |
+          set -euo pipefail
+          solana airdrop 10 || solana airdrop 10
+          solana balance
+
+      - name: Program JS deps (if any)
+        if: ${{ hashFiles(format('{0}/package.json', matrix.path)) != '' }}
+        working-directory: ${{ matrix.path }}
+        run: |
+          npm ci
+
+      - name: Anchor build
+        working-directory: ${{ matrix.path }}
+        env:
+          ANCHOR_WALLET: ${{ env.ANCHOR_WALLET }}
+          ANCHOR_PROVIDER_URL: ${{ env.ANCHOR_PROVIDER_URL }}
+        run: |
+          set -euo pipefail
+          anchor build
+
+      - name: Anchor test
+        working-directory: ${{ matrix.path }}
+        env:
+          ANCHOR_WALLET: ${{ env.ANCHOR_WALLET }}
+          ANCHOR_PROVIDER_URL: ${{ env.ANCHOR_PROVIDER_URL }}
+        run: |
+          set -euo pipefail
+          # Skip lint to keep CI fast; enable in CI.yml if desired
+          anchor test --skip-lint
+
+      - name: Upload IDL artifact (if present)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: idl-${{ matrix.name }}
+          path: |
+            ${{ matrix.path }}/target/idl/*.json
+            ${{ matrix.path }}/idl/*.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Stop local validator
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f /tmp/validator.pid ]; then
+            kill "$(cat /tmp/validator.pid)" || true
+          fi
+
+  idl-aggregate:
+    name: Aggregate IDLs
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all IDL artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/idls
+
+      - name: Assemble IDL bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/idl
+          found=0
+          if [ -d /tmp/idls ]; then
+            while IFS= read -r -d '' f; do
+              found=1
+              base="$(basename "$f")"
+              cp -f "$f" "artifacts/idl/$base"
+            done < <(find /tmp/idls -type f -name "*.json" -print0 || true)
+          fi
+
+          if [ $found -eq 0 ]; then
+            echo "No IDLs found to aggregate."
+          else
+            echo "Aggregated IDLs:"
+            ls -la artifacts/idl
+          fi
+
+      - name: Upload aggregated IDLs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: idl-bundle
+          path: artifacts/idl
+          if-no-files-found: ignore
+          retention-days: 14
