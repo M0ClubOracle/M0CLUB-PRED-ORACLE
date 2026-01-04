@@ -1,0 +1,36 @@
+
+version: "3.9"
+name: m0club-prod
+
+services:
+  api:
+    image: ghcr.io/m0club/api-gateway:prod
+    environment:
+      RUST_LOG: info
+      M0_LOG_JSON: "1"
+      M0_API_KEYS: "${M0_API_KEYS:?required}"
+    ports:
+      - "8080:8080"
+
+  realtime:
+    image: ghcr.io/m0club/realtime:prod
+    ports:
+      - "8090:8090"
+
+  indexer:
+    image: ghcr.io/m0club/indexer:prod
+    environment:
+      RUST_LOG: info
+    command: ["m0-indexer", "--rpc-url", "${SOLANA_RPC_URL:-https://api.mainnet-beta.solana.com}"]
+
+  jobs:
+    image: ghcr.io/m0club/jobs:prod
+    command: ["m0-jobs", "--interval-secs", "120"]
+
+  dashboard:
+    image: ghcr.io/m0club/dashboard:prod
+    environment:
+      NEXT_PUBLIC_API_BASE: "${DASH_API_BASE:-https://api.m0club.com}"
+      NEXT_PUBLIC_WS_URL: "${DASH_WS_URL:-wss://realtime.m0club.com/ws}"
+    ports:
+      - "3000:3000"

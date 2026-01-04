@@ -1,0 +1,40 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: realtime
+  namespace: { .Values.global.namespace }
+spec:
+  replicas: { .Values.realtime.replicaCount }
+  selector:
+    matchLabels:
+      app: realtime
+  template:
+    metadata:
+      labels:
+        app: realtime
+    spec:
+      containers:
+        - name: realtime
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.realtime.image }}:{{ .Values.realtime.tag }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: RUST_LOG
+              value: "{{ .Values.global.env.RUST_LOG }}"
+            - name: M0_LOG_JSON
+              value: "{{ .Values.global.env.M0_LOG_JSON }}"
+          ports:
+            - containerPort: 8090
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: realtime
+  namespace: { .Values.global.namespace }
+spec:
+  selector:
+    app: realtime
+  ports:
+    - name: http
+      port: 8090
+      targetPort: 8090

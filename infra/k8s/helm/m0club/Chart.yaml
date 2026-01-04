@@ -1,0 +1,7 @@
+
+apiVersion: v2
+name: m0club
+description: M0Club deployment chart (engine, signer, api, indexer, realtime, jobs, dashboard)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

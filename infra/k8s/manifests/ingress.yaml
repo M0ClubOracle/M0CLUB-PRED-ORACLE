@@ -1,0 +1,39 @@
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: m0club
+  namespace: m0club
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: api.m0club.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8080
+    - host: realtime.m0club.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: realtime
+                port:
+                  number: 8090
+    - host: dashboard.m0club.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  number: 3000

@@ -1,0 +1,25 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signer
+  namespace: {{ .Values.global.namespace }}
+spec:
+  replicas: {{ .Values.signer.replicaCount }}
+  selector:
+    matchLabels:
+      app: signer
+  template:
+    metadata:
+      labels:
+        app: signer
+    spec:
+      containers:
+        - name: signer
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.signer.image }}:{{ .Values.signer.tag }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: RUST_LOG
+              value: "{{ .Values.global.env.RUST_LOG }}"
+            - name: M0_LOG_JSON
+              value: "{{ .Values.global.env.M0_LOG_JSON }}"

@@ -1,0 +1,37 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: realtime
+  namespace: m0club
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: realtime
+  template:
+    metadata:
+      labels:
+        app: realtime
+    spec:
+      containers:
+        - name: realtime
+          image: ghcr.io/m0club/realtime:latest
+          ports:
+            - containerPort: 8090
+          env:
+            - name: RUST_LOG
+              value: info
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: realtime
+  namespace: m0club
+spec:
+  selector:
+    app: realtime
+  ports:
+    - name: http
+      port: 8090
+      targetPort: 8090

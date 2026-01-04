@@ -1,0 +1,25 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine
+  namespace: {{ .Values.global.namespace }}
+spec:
+  replicas: {{ .Values.engine.replicaCount }}
+  selector:
+    matchLabels:
+      app: engine
+  template:
+    metadata:
+      labels:
+        app: engine
+    spec:
+      containers:
+        - name: engine
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.engine.image }}:{{ .Values.engine.tag }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: RUST_LOG
+              value: "{{ .Values.global.env.RUST_LOG }}"
+            - name: M0_LOG_JSON
+              value: "{{ .Values.global.env.M0_LOG_JSON }}"

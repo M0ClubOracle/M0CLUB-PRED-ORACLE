@@ -1,0 +1,64 @@
+
+global:
+  namespace: m0club
+  imagePullSecrets: []
+  imageRegistry: ghcr.io/m0club
+  env:
+    RUST_LOG: info
+    M0_LOG_JSON: "1"
+
+api:
+  replicaCount: 2
+  image: api-gateway
+  tag: latest
+  servicePort: 8080
+
+realtime:
+  replicaCount: 2
+  image: realtime
+  tag: latest
+  servicePort: 8090
+
+indexer:
+  replicaCount: 1
+  image: indexer
+  tag: latest
+
+jobs:
+  replicaCount: 1
+  image: jobs
+  tag: latest
+  intervalSecs: 60
+
+engine:
+  replicaCount: 1
+  image: engine
+  tag: latest
+
+signer:
+  replicaCount: 1
+  image: signer
+  tag: latest
+
+dashboard:
+  replicaCount: 1
+  image: dashboard
+  tag: latest
+  servicePort: 3000
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: api.m0club.com
+      service: api
+      port: 8080
+      path: /
+    - host: realtime.m0club.com
+      service: realtime
+      port: 8090
+      path: /
+    - host: dashboard.m0club.com
+      service: dashboard
+      port: 3000
+      path: /

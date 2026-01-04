@@ -1,0 +1,23 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jobs
+  namespace: m0club
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jobs
+  template:
+    metadata:
+      labels:
+        app: jobs
+    spec:
+      containers:
+        - name: jobs
+          image: ghcr.io/m0club/jobs:latest
+          args: ["--interval-secs", "60"]
+          env:
+            - name: RUST_LOG
+              value: info

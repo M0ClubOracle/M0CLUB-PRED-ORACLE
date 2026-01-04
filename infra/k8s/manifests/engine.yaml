@@ -1,0 +1,22 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine
+  namespace: m0club
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: engine
+  template:
+    metadata:
+      labels:
+        app: engine
+    spec:
+      containers:
+        - name: engine
+          image: ghcr.io/m0club/engine:latest
+          env:
+            - name: RUST_LOG
+              value: info

@@ -1,0 +1,22 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signer
+  namespace: m0club
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: signer
+  template:
+    metadata:
+      labels:
+        app: signer
+    spec:
+      containers:
+        - name: signer
+          image: ghcr.io/m0club/signer:latest
+          env:
+            - name: RUST_LOG
+              value: info

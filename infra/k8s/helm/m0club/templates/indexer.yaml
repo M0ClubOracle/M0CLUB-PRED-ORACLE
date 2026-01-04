@@ -1,0 +1,25 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indexer
+  namespace: {{ .Values.global.namespace }}
+spec:
+  replicas: {{ .Values.indexer.replicaCount }}
+  selector:
+    matchLabels:
+      app: indexer
+  template:
+    metadata:
+      labels:
+        app: indexer
+    spec:
+      containers:
+        - name: indexer
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.indexer.image }}:{{ .Values.indexer.tag }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: RUST_LOG
+              value: "{{ .Values.global.env.RUST_LOG }}"
+            - name: M0_LOG_JSON
+              value: "{{ .Values.global.env.M0_LOG_JSON }}"

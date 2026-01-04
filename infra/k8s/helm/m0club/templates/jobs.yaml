@@ -1,0 +1,26 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jobs
+  namespace: {{ .Values.global.namespace }}
+spec:
+  replicas: {{ .Values.jobs.replicaCount }}
+  selector:
+    matchLabels:
+      app: jobs
+  template:
+    metadata:
+      labels:
+        app: jobs
+    spec:
+      containers:
+        - name: jobs
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.jobs.image }}:{{ .Values.jobs.tag }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: RUST_LOG
+              value: "{{ .Values.global.env.RUST_LOG }}"
+            - name: M0_LOG_JSON
+              value: "{{ .Values.global.env.M0_LOG_JSON }}"
+          args: ["--interval-secs", "{{ .Values.jobs.intervalSecs }}"]

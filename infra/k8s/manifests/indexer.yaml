@@ -1,0 +1,24 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indexer
+  namespace: m0club
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: indexer
+  template:
+    metadata:
+      labels:
+        app: indexer
+    spec:
+      containers:
+        - name: indexer
+          image: ghcr.io/m0club/indexer:latest
+          env:
+            - name: RUST_LOG
+              value: info
+            - name: SOLANA_RPC_URL
+              value: https://api.mainnet-beta.solana.com
