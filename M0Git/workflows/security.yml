@@ -1,0 +1,262 @@
+name: Security
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "**/*.rs"
+      - "**/*.toml"
+      - "**/*.lock"
+      - "**/*.json"
+      - "**/*.yml"
+      - "**/*.yaml"
+      - ".github/workflows/security.yml"
+      - "programs/**"
+      - "core-engine/**"
+      - "services/**"
+      - "sdk/**"
+      - "infra/**"
+  pull_request:
+    branches: ["**"]
+    paths:
+      - "**/*.rs"
+      - "**/*.toml"
+      - "**/*.lock"
+      - "**/*.json"
+      - "**/*.yml"
+      - "**/*.yaml"
+      - ".github/workflows/security.yml"
+      - "programs/**"
+      - "core-engine/**"
+      - "services/**"
+      - "sdk/**"
+      - "infra/**"
+  schedule:
+    # Weekly scan on Sunday at 03:00 UTC
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  sast-codeql:
+    name: CodeQL (SAST)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["javascript-typescript", "python", "rust"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # You can add custom queries here if needed
+          # queries: security-extended,security-and-quality
+
+      - name: Autobuild (best-effort)
+        uses: github/codeql-action/autobuild@v3
+
+      - name: CodeQL Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  deps-osv:
+    name: OSV dependency scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: OSV-Scanner
+        uses: google/osv-scanner-action@v1.7.3
+        with:
+          scan-args: |-
+            --recursive
+            --skip-git
+            .
+
+      - name: Upload SARIF (OSV)
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: osv-results.sarif
+          category: osv
+
+  rust-audit:
+    name: Rust advisories (cargo-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo audit
+        uses: actions-rust-lang/audit@v1
+        with:
+          ignore: ""
+
+  rust-deny:
+    name: Rust supply chain policy (cargo-deny)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: Run cargo-deny
+        run: |
+          set -euo pipefail
+          # If you add a deny.toml, cargo-deny will use it.
+          # Otherwise it will run with defaults.
+          cargo deny check bans licenses sources advisories
+
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  iac-scan:
+    name: IaC scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy config scan
+        uses: aquasecurity/trivy-action@0.25.0
+        with:
+          scan-type: config
+          scan-ref: .
+          format: sarif
+          output: trivy-config.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+
+      - name: Upload SARIF (Trivy)
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-config.sarif
+          category: trivy-config
+
+  npm-audit:
+    name: Node dependencies (npm audit)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - sdk/ts
+          - services/dashboard
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Skip if package not present
+        if: ${{ hashFiles(format('{0}/package.json', matrix.dir)) == '' }}
+        run: |
+          echo "No package.json found at ${{ matrix.dir }}. Skipping."
+          exit 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            ${{ matrix.dir }}/package-lock.json
+            ${{ matrix.dir }}/npm-shrinkwrap.json
+
+      - name: Install deps
+        working-directory: ${{ matrix.dir }}
+        run: |
+          set -euo pipefail
+          npm ci
+
+      - name: npm audit (high+)
+        working-directory: ${{ matrix.dir }}
+        run: |
+          set -euo pipefail
+          # Do not fail the build on audit by default; flip to --audit-level=high && exit 1 if you want strictness
+          npm audit --audit-level=high || true
+
+  pip-audit:
+    name: Python dependencies (pip-audit)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - sdk/python
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Skip if Python package not present
+        if: ${{ hashFiles(format('{0}/pyproject.toml', matrix.dir)) == '' && hashFiles(format('{0}/requirements.txt', matrix.dir)) == '' }}
+        run: |
+          echo "No Python dependency manifest found at ${{ matrix.dir }}. Skipping."
+          exit 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            ${{ matrix.dir }}/pyproject.toml
+            ${{ matrix.dir }}/requirements.txt
+
+      - name: Install pip-audit
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install pip-audit
+
+      - name: pip-audit (requirements.txt)
+        if: ${{ hashFiles(format('{0}/requirements.txt', matrix.dir)) != '' }}
+        working-directory: ${{ matrix.dir }}
+        run: |
+          set -euo pipefail
+          pip-audit -r requirements.txt || true
+
+      - name: pip-audit (pyproject via installed env)
+        if: ${{ hashFiles(format('{0}/pyproject.toml', matrix.dir)) != '' }}
+        working-directory: ${{ matrix.dir }}
+        run: |
+          set -euo pipefail
+          # Install the project to resolve dependencies then audit the environment
+          python -m pip install -e "." || true
+          pip-audit || true
