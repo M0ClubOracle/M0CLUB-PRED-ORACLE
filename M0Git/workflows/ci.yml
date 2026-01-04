@@ -1,0 +1,388 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # Keep builds deterministic across runners
+  RUSTFLAGS: "-Dwarnings"
+  # Solana/Anchor defaults (safe to override in repo secrets or env files)
+  SOLANA_VERSION: "v1.18.26"
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  meta:
+    name: Meta checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate workflow YAML (basic)
+        run: |
+          python - <<'PY'
+          import sys, pathlib
+          p = pathlib.Path(".github/workflows/ci.yml")
+          if not p.exists():
+              print("ci.yml not found")
+              sys.exit(1)
+          print("ci.yml present:", p)
+          PY
+
+  rust:
+    name: Rust workspace (fmt, clippy, test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          # Cache across the whole workspace
+          workspaces: |
+            . -> target
+
+      - name: Rust fmt (check)
+        run: |
+          cargo fmt --all --check
+
+      - name: Rust clippy (deny warnings)
+        run: |
+          cargo clippy --workspace --all-targets --all-features
+
+      - name: Rust tests
+        run: |
+          cargo test --workspace --all-features
+
+      - name: Cargo audit (advisories)
+        uses: actions-rust-lang/audit@v1
+        with:
+          ignore: ""
+
+  anchor:
+    name: Anchor programs (build & test)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        program:
+          - programs/m0-oracle
+          - programs/m0-registry
+          - programs/m0-fee-router
+          - programs/m0-governance
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Skip if program not present
+        if: ${{ hashFiles(format('{0}/Anchor.toml', matrix.program)) == '' }}
+        run: |
+          echo "No Anchor.toml found at ${{ matrix.program }}. Skipping."
+          exit 0
+
+      - name: Install dependencies (Ubuntu)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev libudev-dev \
+            curl ca-certificates git jq
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install Solana CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Installing Solana $SOLANA_VERSION"
+          sh -c "$(curl -sSfL https://release.solana.com/${SOLANA_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          solana --version
+
+      - name: Configure Solana (localnet)
+        shell: bash
+        run: |
+          set -euo pipefail
+          solana config set --url http://127.0.0.1:8899
+          solana config get
+
+      - name: Install Anchor (AVM)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # AVM is the simplest way to install Anchor reliably on CI
+          cargo install --locked avm || true
+          avm --version
+          # Install the latest stable anchor; pin here if you want reproducibility
+          avm install latest
+          avm use latest
+          anchor --version
+
+      - name: Prepare test wallet
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.config/solana"
+          solana-keygen new --no-bip39-passphrase -o "$HOME/.config/solana/id.json" --force
+          echo "ANCHOR_WALLET=$HOME/.config/solana/id.json" >> "$GITHUB_ENV"
+          echo "$HOME/.config/solana/id.json"
+          solana address
+
+      - name: Start local validator (background)
+        shell: bash
+        run: |
+          set -euo pipefail
+          solana-test-validator --quiet --reset --limit-ledger-size &
+          echo $! > /tmp/validator.pid
+          for i in $(seq 1 60); do
+            if solana cluster-version >/dev/null 2>&1; then
+              echo "Validator is up"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Airdrop SOL to test wallet
+        shell: bash
+        run: |
+          set -euo pipefail
+          solana airdrop 10 || solana airdrop 10
+          solana balance
+
+      - name: Install JS deps (only if present)
+        if: ${{ hashFiles(format('{0}/package.json', matrix.program)) != '' }}
+        working-directory: ${{ matrix.program }}
+        run: |
+          npm ci
+
+      - name: Anchor build
+        working-directory: ${{ matrix.program }}
+        run: |
+          anchor build
+
+      - name: Anchor test
+        working-directory: ${{ matrix.program }}
+        env:
+          # Make sure anchor uses the generated wallet
+          ANCHOR_WALLET: ${{ env.ANCHOR_WALLET }}
+        run: |
+          anchor test --skip-lint
+
+      - name: Stop local validator
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f /tmp/validator.pid ]; then
+            kill "$(cat /tmp/validator.pid)" || true
+          fi
+
+  typescript:
+    name: TypeScript packages (lint & test)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg:
+          - sdk/ts
+          - services/dashboard
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Skip if package not present
+        if: ${{ hashFiles(format('{0}/package.json', matrix.pkg)) == '' }}
+        run: |
+          echo "No package.json found at ${{ matrix.pkg }}. Skipping."
+          exit 0
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            ${{ matrix.pkg }}/package-lock.json
+            ${{ matrix.pkg }}/npm-shrinkwrap.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.pkg }}
+        run: |
+          npm ci
+
+      - name: Lint (if script exists)
+        working-directory: ${{ matrix.pkg }}
+        run: |
+          if npm run | grep -qE '^  lint'; then
+            npm run lint
+          else
+            echo "No lint script found, skipping."
+          fi
+
+      - name: Test (if script exists)
+        working-directory: ${{ matrix.pkg }}
+        run: |
+          if npm run | grep -qE '^  test'; then
+            npm run test
+          else
+            echo "No test script found, skipping."
+          fi
+
+      - name: Build (if script exists)
+        working-directory: ${{ matrix.pkg }}
+        run: |
+          if npm run | grep -qE '^  build'; then
+            npm run build
+          else
+            echo "No build script found, skipping."
+          fi
+
+  python:
+    name: Python SDK (lint & test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Skip if Python package not present
+        if: ${{ hashFiles('sdk/python/pyproject.toml') == '' && hashFiles('sdk/python/requirements.txt') == '' }}
+        run: |
+          echo "No Python SDK found under sdk/python. Skipping."
+          exit 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            sdk/python/pyproject.toml
+            sdk/python/requirements.txt
+
+      - name: Install dependencies (pyproject)
+        if: ${{ hashFiles('sdk/python/pyproject.toml') != '' }}
+        working-directory: sdk/python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" || pip install -e "."
+
+      - name: Install dependencies (requirements.txt)
+        if: ${{ hashFiles('sdk/python/requirements.txt') != '' }}
+        working-directory: sdk/python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ruff / Black / MyPy (if available)
+        working-directory: sdk/python
+        run: |
+          python - <<'PY'
+          import shutil, subprocess, sys
+          tools = [
+            ("ruff", ["ruff", "check", "."]),
+            ("black", ["black", "--check", "."]),
+            ("mypy", ["mypy", "."]),
+          ]
+          missing = []
+          for exe, cmd in tools:
+            if shutil.which(exe) is None:
+              missing.append(exe)
+              continue
+            print("Running:", " ".join(cmd))
+            subprocess.check_call(cmd)
+          if missing:
+            print("Tools not installed, skipped:", ", ".join(missing))
+          PY
+
+      - name: Pytest (if tests exist)
+        working-directory: sdk/python
+        run: |
+          if [ -d "tests" ]; then
+            python -m pytest -q
+          else
+            echo "No tests/ directory found, skipping."
+          fi
+
+  docker:
+    name: Docker build (smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Skip if Docker definitions not present
+        if: ${{ hashFiles('infra/docker/images/*.Dockerfile') == '' }}
+        run: |
+          echo "No Dockerfiles found under infra/docker/images. Skipping."
+          exit 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build images (no push)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in infra/docker/images/*.Dockerfile; do
+            tag="m0club-ci:$(basename "$f" | tr '[:upper:]' '[:lower:]' | tr '.' '-')"
+            echo "Building $f -> $tag"
+            docker build -f "$f" -t "$tag" .
+          done
+
+  security:
+    name: Security scan (OSV)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: OSV-Scanner
+        uses: google/osv-scanner-action@v1.7.3
+        with:
+          scan-args: |-
+            --recursive
+            --skip-git
+            .
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: osv-results.sarif
+          category: osv
