@@ -1,5 +1,5 @@
 
-# M0Club Core Engine (m0-core)
+# M0Club Core Engine (m0-core) 
 
 This folder contains the off-chain engine that powers:
 - data ingestion
