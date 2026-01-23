@@ -1,5 +1,5 @@
 
-# M0Club On-Chain Programs
+# M0CORE On-Chain Programs
 
 This folder contains Anchor-based Solana programs used by M0Club.
 
