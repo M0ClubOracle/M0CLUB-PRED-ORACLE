@@ -1,9 +1,9 @@
 
 # M0CORE Architecture
 
-This document describes the end-to-end architecture of M0Club, including on-chain programs, off-chain engine components, service topology, data contracts, and operational concerns.
+This document describes the end-to-end architecture of M0CORE, including on-chain programs, off-chain engine components, service topology, data contracts, and operational concerns.
 
-M0Club is an omni-domain predictive oracle built on Solana. It ingests multi-source signals, produces calibrated probability analytics, packages them into verifiable bundles, and publishes commitments and reveals on-chain.
+M0CORE is an omni-domain predictive oracle built on Solana. It ingests multi-source signals, produces calibrated probability analytics, packages them into verifiable bundles, and publishes commitments and reveals on-chain.
 
 ---
 
