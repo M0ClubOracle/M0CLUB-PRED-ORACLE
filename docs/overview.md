@@ -1,7 +1,7 @@
 [overview.md](https://github.com/user-attachments/files/24420706/overview.md)
-# M0Club Overview
+# M0CORE Overview
 
-M0Club is a predictive oracle system built on Solana.
+M0CORE is a predictive oracle system built on Solana.
 It produces real-time probability analytics for both on-chain and real-world events using a proprietary engine (M0-CORE), and delivers signed oracle outputs on-chain.
 
 This repository is a monorepo containing:
@@ -14,9 +14,9 @@ This repository is a monorepo containing:
 
 ---
 
-## What M0Club Is
+## What M0CORE Is
 
-M0Club is an omni-domain predictive oracle.
+M0CORE is an omni-domain predictive oracle.
 
 Traditional oracles focus on price feeds. M0Club generalizes the oracle problem to any event that can be modeled as a probabilistic outcome distribution:
 - Sports match win probabilities
@@ -25,7 +25,7 @@ Traditional oracles focus on price feeds. M0Club generalizes the oracle problem 
 - Market regime probabilities
 - On-chain protocol risk indicators
 
-M0Club focuses on delivering:
+M0CORE focuses on delivering:
 - High-frequency updates
 - Calibrated probability distributions
 - Confidence intervals and risk metadata
@@ -58,7 +58,7 @@ The system is built to resist manipulation:
 
 ## High-Level Architecture
 
-M0Club is composed of four layers:
+M0CORE is composed of four layers:
 
 1. **Ingestion & Normalization**
    - Pulls data from on-chain and external sources
