@@ -1,29 +1,21 @@
-![1500x500](https://github.com/user-attachments/assets/46aba31e-c954-475f-acc1-ba13180962b8)
+
+![1500x500](https://github.com/user-attachments/assets/0006df9a-9c80-4a6e-9510-cde75265f237)
 
 <div align="center">
 
-# M0Club — Omni-Domain Predictive Oracle on Solana
+# M0CORE — Omni-Domain Predictive Oracle on Solana
 
 **Solana prediction oracle via a proprietary engine.**  
 **Real-time analytics for on-chain & real-world events.**
 
-[![Website](https://img.shields.io/badge/Website-m0club.com-000000?style=for-the-badge)](https://m0club.com/)
-[![X](https://img.shields.io/badge/X-@M0Clubonx-000000?style=for-the-badge&logo=x)](https://x.com/M0Clubonx)
+[![Website](https://img.shields.io/badge/Website-m0core.com-000000?style=for-the-badge)](https://m0core.org/)
+[![X](https://img.shields.io/badge/X-@M0CORELAB-000000?style=for-the-badge&logo=x)](https://x.com/M0CORELAB)
 [![Docs](https://img.shields.io/badge/Docs-Overview-000000?style=for-the-badge)](./docs/overview.md)
 [![Architecture](https://img.shields.io/badge/Docs-Architecture-000000?style=for-the-badge)](./docs/architecture.md)
 [![Security](https://img.shields.io/badge/Security-Policy-000000?style=for-the-badge)](./SECURITY.md)
 
 </div>
 
----
-
-## Token + Trading Links
-
-- **Token CA (Solana):** `95embi6CRLg6brbVVErwfb54wjuqA3iHGLckH9Ktpump`
-- **Pump.fun Link:** `https://pump.fun/coin/95embi6CRLg6brbVVErwfb54wjuqA3iHGLckH9Ktpump`
-- **DEXScreener Link:** `https://dexscreener.com/solana/95embi6CRLg6brbVVErwfb54wjuqA3iHGLckH9Ktpump`
-
----
 
 ## Table of Contents
 
@@ -75,13 +67,13 @@
 
 ---
 
-## What is M0Club?
+## What is M0CORE?
 
-M0Club is a next-generation **omni-domain predictive oracle** built on Solana.
+M0CORE is a next-generation **omni-domain predictive oracle** built on Solana.
 
 **Core idea:** *The world doesn't just happen. It's calculated.*
 
-M0Club goes beyond price feeds. It models high-signal events across multiple domains and publishes:
+M0CORE goes beyond price feeds. It models high-signal events across multiple domains and publishes:
 - probability distributions
 - confidence intervals
 - integrity proofs (commit-reveal + bundle hashing)
@@ -104,9 +96,9 @@ Domains include:
 
 ---
 
-## What M0Club Produces
+## What M0CORE Produces
 
-M0Club produces **Oracle Output Bundles** that are:
+M0CORE produces **Oracle Output Bundles** that are:
 - content-addressed (hash)
 - optionally Merkleized (for partial verification)
 - signed by the active signer set
@@ -136,7 +128,7 @@ Example output shape (conceptual):
 ### Repository Layout
 
 ```text
-m0club/
+m0core/
   .github/
   config/
   scripts/
@@ -532,8 +524,8 @@ Apache 2.0 — see `LICENSE.md`.
 
 ## Official Links
 
-- Website: https://m0club.com/
-- X: https://x.com/M0Clubonx
+- Website: https://m0core.org/
+- X: https://x.com/M0CORELAB
 
 ---
 
