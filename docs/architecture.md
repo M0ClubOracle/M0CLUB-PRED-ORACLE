@@ -1,5 +1,5 @@
 
-# M0Club Architecture
+# M0CORE Architecture
 
 This document describes the end-to-end architecture of M0Club, including on-chain programs, off-chain engine components, service topology, data contracts, and operational concerns.
 
