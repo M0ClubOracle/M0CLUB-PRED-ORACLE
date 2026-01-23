@@ -1,7 +1,7 @@
 
 # Security Policy
 
-M0Club takes security seriously. This document explains how to report vulnerabilities,
+M0CORE takes security seriously. This document explains how to report vulnerabilities,
 how we handle disclosures, and the security expectations for contributors.
 
 ## Supported Versions
@@ -22,10 +22,10 @@ Please **do not** open a public issue or post details publicly until we have rev
 ### Contact
 
 Send an email to:
-- security@m0club.com
+- security@m0core.org
 
 If you believe the issue is actively being exploited, also contact:
-- conduct@m0club.com
+- conduct@m0core.org
 
 ### What to include
 
