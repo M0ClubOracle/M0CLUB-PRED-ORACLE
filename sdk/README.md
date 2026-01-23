@@ -1,5 +1,5 @@
 
-# M0Club SDK
+# M0M0CORE SDK
 
 This directory contains:
 - `types/` shared type definitions (JSON Schema + TS/Rust/Python)
