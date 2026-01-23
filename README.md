@@ -8,7 +8,7 @@
 **Solana prediction oracle via a proprietary engine.**  
 **Real-time analytics for on-chain & real-world events.**
 
-[![Website](https://img.shields.io/badge/Website-m0core.com-000000?style=for-the-badge)](https://m0core.org/)
+[![Website](https://img.shields.io/badge/Website-m0core.org-000000?style=for-the-badge)](https://m0core.org/)
 [![X](https://img.shields.io/badge/X-@M0CORELAB-000000?style=for-the-badge&logo=x)](https://x.com/M0CORELAB)
 [![Docs](https://img.shields.io/badge/Docs-Overview-000000?style=for-the-badge)](./docs/overview.md)
 [![Architecture](https://img.shields.io/badge/Docs-Architecture-000000?style=for-the-badge)](./docs/architecture.md)
