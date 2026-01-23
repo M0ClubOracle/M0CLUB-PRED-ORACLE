@@ -1,5 +1,5 @@
 
-# M0Club Test Suite
+# M0CORE Test Suite
 
 This folder contains:
 - `integration/` TypeScript end-to-end tests (gateway + services)
